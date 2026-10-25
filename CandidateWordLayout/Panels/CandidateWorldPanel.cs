@@ -2,18 +2,108 @@ using System;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace CandidateWordLayout.Panels;
 
 public class CandidateWorldPanel : Panel
 {
     private readonly List<CandidatePosition> _positions = new();
+    private readonly List<Rect> _rowBounds = new();
+    private Size _layoutSize;
+
+    public static readonly AttachedProperty<int> NumberProperty =
+        AvaloniaProperty.RegisterAttached<CandidateWorldPanel, Control, int>("Number", 1);
+
+    public static int GetNumber(Control control) => control.GetValue(NumberProperty);
+    public static void SetNumber(Control control, int value) => control.SetValue(NumberProperty, value);
+
+    public static readonly AttachedProperty<double> NumberOpacityProperty =
+        AvaloniaProperty.RegisterAttached<CandidateWorldPanel, Control, double>("NumberOpacity");
+
+    public static double GetNumberOpacity(Control control) => control.GetValue(NumberOpacityProperty);
+    public static void SetNumberOpacity(Control control, double value) => control.SetValue(NumberOpacityProperty, value);
+
+    public static readonly StyledProperty<double> SelectedRowCornerRadiusProperty =
+        AvaloniaProperty.Register<CandidateWorldPanel, double>(nameof(SelectedRowCornerRadius), 12,
+            validate: value => double.IsFinite(value) && value >= 0);
+
+    public double SelectedRowCornerRadius
+    {
+        get => GetValue(SelectedRowCornerRadiusProperty);
+        set => SetValue(SelectedRowCornerRadiusProperty, value);
+    }
+
+    public static readonly StyledProperty<int> SelectedIndexProperty =
+        AvaloniaProperty.Register<CandidateWorldPanel, int>(nameof(SelectedIndex), -1);
+
+    public static readonly StyledProperty<IBrush?> SelectedRowBrushProperty =
+        AvaloniaProperty.Register<CandidateWorldPanel, IBrush?>(nameof(SelectedRowBrush));
+
+    public int SelectedIndex
+    {
+        get => GetValue(SelectedIndexProperty);
+        set => SetValue(SelectedIndexProperty, value);
+    }
+
+    public IBrush? SelectedRowBrush
+    {
+        get => GetValue(SelectedRowBrushProperty);
+        set => SetValue(SelectedRowBrushProperty, value);
+    }
 
     static CandidateWorldPanel()
     {
         AffectsMeasure<CandidateWorldPanel>(ColumnCountProperty);
         AffectsMeasure<CandidateWorldPanel>(ColumnAlignmentProperty);
         AffectsMeasure<CandidateWorldPanel>(ShrinkToOneRowProperty);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == SelectedIndexProperty ||
+            change.Property == SelectedRowBrushProperty ||
+            change.Property == SelectedRowCornerRadiusProperty ||
+            change.Property == ShrinkToOneRowProperty)
+            UpdateRowBackground();
+    }
+
+    private void UpdateRowBackground()
+    {
+        var selectedRow = SelectedIndex >= 0 && SelectedIndex < _positions.Count
+            ? _positions[SelectedIndex].Row
+            : -1;
+        for (var index = 0; index < Children.Count; index++)
+        {
+            SetNumberOpacity(Children[index],
+                index < _positions.Count && _positions[index].Row == selectedRow ? 1 : 0);
+        }
+
+        if (ShrinkToOneRow || SelectedIndex < 0 || SelectedIndex >= _positions.Count ||
+            SelectedRowBrush is null || _positions[SelectedIndex].Row >= _rowBounds.Count)
+        {
+            SetCurrentValue(BackgroundProperty, null);
+            return;
+        }
+
+        var drawing = new DrawingGroup();
+        // Include the full panel bounds so the brush does not stretch the selected row.
+        drawing.Children.Add(new GeometryDrawing
+        {
+            Brush = Brushes.Transparent,
+            Geometry = new RectangleGeometry(new Rect(_layoutSize))
+        });
+        drawing.Children.Add(new GeometryDrawing
+        {
+            Brush = SelectedRowBrush,
+            Geometry = new RectangleGeometry(_rowBounds[_positions[SelectedIndex].Row])
+            {
+                RadiusX = SelectedRowCornerRadius,
+                RadiusY = SelectedRowCornerRadius
+            }
+        });
+        SetCurrentValue(BackgroundProperty, new DrawingBrush { Drawing = drawing });
     }
     
     public int ColumnCount
@@ -77,8 +167,12 @@ public class CandidateWorldPanel : Panel
     {
         var columnWidth = finalSize.Width / ColumnCount;
         var row = 0;
+        var number = 1;
         if (arrange)
+        {
             _positions.Clear();
+            _rowBounds.Clear();
+        }
 
         var currentLeft = 0.0;
         var currentTop = 0.0;
@@ -93,6 +187,7 @@ public class CandidateWorldPanel : Panel
             var child = Children[index];
             if (measure)
             {
+                SetNumber(child, number);
                 child.Measure(finalSize);
             }
 
@@ -104,12 +199,19 @@ public class CandidateWorldPanel : Panel
                 currentLeft = 0;
                 currentTop += currentLineHeight;
                 row++;
+                number = 1;
                 firstRowHeight = currentLineHeight;
                 currentLineHeight = 0.0;
 
                 if (SecondRowChildStartIndex == 0)
                 {
                     SecondRowChildStartIndex = index;
+                }
+
+                if (measure)
+                {
+                    SetNumber(child, number);
+                    child.Measure(finalSize);
                 }
             }
 
@@ -125,9 +227,15 @@ public class CandidateWorldPanel : Panel
                     columnSpan = Math.Max(1, (int)Math.Ceiling(desiredSize.Width / columnWidth - 1e-8));
                 }
                 _positions.Add(new CandidatePosition(row, column, columnSpan));
+                if (_rowBounds.Count == row)
+                    _rowBounds.Add(new Rect(0, currentTop, finalSize.Width, desiredSize.Height));
+                else
+                    _rowBounds[row] = new Rect(0, currentTop, finalSize.Width,
+                        Math.Max(_rowBounds[row].Height, desiredSize.Height));
                 child.Arrange(new Rect(currentLeft, currentTop, desiredSize.Width, desiredSize.Height));
             }
 
+            number++;
             currentLeft += desiredSize.Width;
             currentLineHeight = Math.Max(currentLineHeight, desiredSize.Height);
 
@@ -164,6 +272,8 @@ public class CandidateWorldPanel : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         var size = LayoutCore(finalSize, false, true);
+        _layoutSize = finalSize;
+        UpdateRowBackground();
         return finalSize;
     }
 

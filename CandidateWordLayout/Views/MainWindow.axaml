@@ -31,6 +31,9 @@
                     <ItemsPanelTemplate>
                         <pns:CandidateWorldPanel
                             ColumnCount="6"
+                            SelectedIndex="{Binding $parent[ListBox].SelectedIndex}"
+                            SelectedRowBrush="#183B82F6"
+                            SelectedRowCornerRadius="12"
                             ShrinkToOneRow="{Binding ShowFirstRowOnly}"
                             ColumnAlignment="{Binding IsExpanded}">
                             <Interaction.Behaviors>
@@ -49,9 +52,12 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type m:CandidateWord}">
                        <StackPanel Orientation="Horizontal">
-                           <TextBlock Text="{Binding Number}"
-                                      FontSize="10" VerticalAlignment="Center"></TextBlock>
-                           <TextBlock FontSize="10" VerticalAlignment="Center">.</TextBlock>
+                           <StackPanel Orientation="Horizontal"
+                                       Opacity="{Binding $parent[ListBoxItem].(pns:CandidateWorldPanel.NumberOpacity)}">
+                               <TextBlock Text="{Binding $parent[ListBoxItem].(pns:CandidateWorldPanel.Number)}"
+                                          FontSize="10" VerticalAlignment="Center"></TextBlock>
+                               <TextBlock FontSize="10" VerticalAlignment="Center">.</TextBlock>
+                           </StackPanel>
                            <TextBlock Text="{Binding Word}"></TextBlock>
                        </StackPanel>
                     </DataTemplate>
