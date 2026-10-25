@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 
@@ -6,6 +7,8 @@ namespace CandidateWordLayout.Panels;
 
 public class CandidateWorldPanel : Panel
 {
+    private readonly List<CandidatePosition> _positions = new();
+
     static CandidateWorldPanel()
     {
         AffectsMeasure<CandidateWorldPanel>(ColumnCountProperty);
@@ -33,9 +36,49 @@ public class CandidateWorldPanel : Panel
 
     public int SecondRowChildStartIndex { get; private set; }
 
+    public bool IsInFirstRow(int index) =>
+        index >= 0 && index < _positions.Count && _positions[index].Row == 0;
+
+    /// <summary>
+    /// Finds the nearest column in the target row. Keep preferredColumn between vertical moves
+    /// to preserve the column through spanning items; reset it for a new navigation sequence.
+    /// </summary>
+    public int GetVerticalNeighbor(int index, int rowOffset, ref int? preferredColumn)
+    {
+        if (index < 0 || index >= _positions.Count)
+            return index;
+
+        var position = _positions[index];
+        preferredColumn ??= position.Column;
+        var targetRow = position.Row + rowOffset;
+        var nearestIndex = index;
+        var nearestDistance = int.MaxValue;
+
+        for (var i = 0; i < _positions.Count; i++)
+        {
+            var candidate = _positions[i];
+            if (candidate.Row != targetRow)
+                continue;
+
+            var distance = Math.Max(0, Math.Max(
+                candidate.Column - preferredColumn.Value,
+                preferredColumn.Value - (candidate.Column + candidate.ColumnSpan - 1)));
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestIndex = i;
+            }
+        }
+
+        return nearestIndex;
+    }
+
     private Size LayoutCore(Size finalSize, bool measure, bool arrange)
     {
         var columnWidth = finalSize.Width / ColumnCount;
+        var row = 0;
+        if (arrange)
+            _positions.Clear();
 
         var currentLeft = 0.0;
         var currentTop = 0.0;
@@ -60,6 +103,7 @@ public class CandidateWorldPanel : Panel
 
                 currentLeft = 0;
                 currentTop += currentLineHeight;
+                row++;
                 firstRowHeight = currentLineHeight;
                 currentLineHeight = 0.0;
 
@@ -73,6 +117,14 @@ public class CandidateWorldPanel : Panel
 
             if (arrange)
             {
+                var column = 0;
+                var columnSpan = 1;
+                if (double.IsFinite(columnWidth) && columnWidth > 0)
+                {
+                    column = (int)Math.Floor(currentLeft / columnWidth + 1e-8);
+                    columnSpan = Math.Max(1, (int)Math.Ceiling(desiredSize.Width / columnWidth - 1e-8));
+                }
+                _positions.Add(new CandidatePosition(row, column, columnSpan));
                 child.Arrange(new Rect(currentLeft, currentTop, desiredSize.Width, desiredSize.Height));
             }
 
@@ -91,12 +143,14 @@ public class CandidateWorldPanel : Panel
             firstRowHeight = currentLineHeight;
         }
 
-        if (ShrinkToOneRow)
+        if (SecondRowChildStartIndex > 0)
         {
-            return new Size(maxWidth, firstRowHeight);
+            maxWidth = Math.Max(finalSize.Width, maxWidth);
         }
         
-        return new Size(maxWidth, currentTop + currentLineHeight);
+        return ShrinkToOneRow ? 
+            new Size(maxWidth, firstRowHeight) : 
+            new Size(maxWidth, currentTop + currentLineHeight);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -121,4 +175,6 @@ public class CandidateWorldPanel : Panel
     
     public static readonly StyledProperty<bool> ShrinkToOneRowProperty =
         AvaloniaProperty.Register<CandidateWorldPanel, bool>(nameof(ShrinkToOneRow), false);
+
+    private readonly record struct CandidatePosition(int Row, int Column, int ColumnSpan);
 }

@@ -9,9 +9,18 @@ namespace CandidateWordLayout.Views;
 
 public partial class MainWindow : Window
 {
+    private int? _preferredColumn;
+    private bool _isVerticalNavigation;
+
     public MainWindow()
     {
         InitializeComponent();
+        AddHandler(KeyDownEvent, OnNavigationKeyDown, RoutingStrategies.Tunnel);
+        ListBox.SelectionChanged += (_, _) =>
+        {
+            if (!_isVerticalNavigation)
+                _preferredColumn = null;
+        };
     }
 
     protected override void OnLoaded(RoutedEventArgs e)
@@ -21,37 +30,60 @@ public partial class MainWindow : Window
         ListBox.SelectedIndex = 0;
     }
 
-    protected override void OnKeyDown(KeyEventArgs e)
+    private void OnNavigationKeyDown(object? sender, KeyEventArgs e)
     {
-        var viewModel = (MainViewModel)DataContext!;
-        var candidateWorldPanel = (CandidateWorldPanel)ListBox.ItemsPanelRoot!;
+        if (e.Key is not (Key.Up or Key.Down or Key.Left or Key.Right) ||
+            e.KeyModifiers != KeyModifiers.None ||
+            DataContext is not MainViewModel viewModel ||
+            ListBox.ItemsPanelRoot is not CandidateWorldPanel candidateWorldPanel ||
+            ListBox.Items.Count == 0)
+            return;
 
-        if (e.Key == Key.Down)
+        e.Handled = true;
+        candidateWorldPanel.UpdateLayout();
+
+        if (ListBox.SelectedIndex < 0)
         {
-            if (!viewModel.IsExpanded)
+            ListBox.SelectedIndex = 0;
+            return;
+        }
+
+        if (e.Key is Key.Left or Key.Right)
+        {
+            _preferredColumn = null;
+            var offset = e.Key == Key.Left ? -1 : 1;
+            ListBox.SelectedIndex = Math.Clamp(ListBox.SelectedIndex + offset, 0, ListBox.Items.Count - 1);
+            if (ListBox.SelectedIndex >= candidateWorldPanel.SecondRowChildStartIndex)
             {
                 viewModel.IsExpanded = true;
             }
+            return;
         }
 
-        if (e.Key == Key.Up)
+        if (!viewModel.IsExpanded)
         {
-            if (viewModel.IsExpanded && ListBox.SelectedIndex < candidateWorldPanel.SecondRowChildStartIndex)
-            {
-                viewModel.IsExpanded = false;
-            }
+            if (e.Key == Key.Down)
+                viewModel.IsExpanded = true;
+            _preferredColumn = null;
+            return;
         }
 
-        if (e.Key == Key.Left)
+        if (e.Key == Key.Up && candidateWorldPanel.IsInFirstRow(ListBox.SelectedIndex))
         {
-            ListBox.SelectedIndex = Math.Max(ListBox.SelectedIndex - 1, 0);
+            viewModel.IsExpanded = false;
+            _preferredColumn = null;
+            return;
         }
 
-        if (e.Key == Key.Right)
+        _isVerticalNavigation = true;
+        try
         {
-            ListBox.SelectedIndex = Math.Min(ListBox.SelectedIndex + 1, ListBox.Items.Count - 1);
+            ListBox.SelectedIndex = candidateWorldPanel.GetVerticalNeighbor(
+                ListBox.SelectedIndex, e.Key == Key.Up ? -1 : 1, ref _preferredColumn);
         }
-        
-        base.OnKeyDown(e);
+        finally
+        {
+            _isVerticalNavigation = false;
+        }
     }
 }
