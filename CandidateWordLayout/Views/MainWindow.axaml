@@ -17,7 +17,7 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <Border Width="400"
+    <Border MaxWidth="400"
             VerticalAlignment="Center"
             HorizontalAlignment="Center"
             BorderThickness="1"
