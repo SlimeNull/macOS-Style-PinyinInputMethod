@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CandidateWordLayout.ViewModels"
+        xmlns:m="using:CandidateWordLayout.Models"
+        xmlns:pns="using:CandidateWordLayout.Panels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="CandidateWordLayout.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="CandidateWordLayout">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <Border Width="400"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Center"
+            BorderThickness="1"
+            BorderBrush="Gray"
+            CornerRadius="12">
+        <pns:SizeTransitioner Duration="0:0:0.2">
+            <ListBox Name="ListBox"
+                     ItemsSource="{Binding CandidateWords}"
+                     Background="{x:Null}">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <pns:CandidateWorldPanel
+                            ColumnCount="6"
+                            ShrinkToOneRow="{Binding ShowFirstRowOnly}"
+                            ColumnAlignment="{Binding IsExpanded}">
+                            <Interaction.Behaviors>
+                                <pns:CandidateMoveBehavior Duration="0:0:0.2"/>
+                            </Interaction.Behaviors>
+                        </pns:CandidateWorldPanel>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerTheme>
+                    <ControlTheme TargetType="ListBoxItem"
+                                  BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="CornerRadius" Value="12"/>
+                        <Setter Property="Padding" Value="4 2"/>
+                    </ControlTheme>
+                </ListBox.ItemContainerTheme>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type m:CandidateWord}">
+                       <StackPanel Orientation="Horizontal">
+                           <TextBlock Text="{Binding Number}"
+                                      FontSize="10" VerticalAlignment="Center"></TextBlock>
+                           <TextBlock FontSize="10" VerticalAlignment="Center">.</TextBlock>
+                           <TextBlock Text="{Binding Word}"></TextBlock>
+                       </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </pns:SizeTransitioner>
+    </Border>
+
+</Window>
